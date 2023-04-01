@@ -7,6 +7,7 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
+import com.velocitypowered.api.proxy.server.ServerPing;
 import de.sage.lobby.command.CommandManager;
 import de.sage.lobby.config.VelocityConfig;
 import de.sage.lobby.event.DistributeEvents;
@@ -16,9 +17,9 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -78,27 +79,22 @@ public class LobbySystem {
             }
 
             case PLAYERCOUNT -> {
-                HashMap<Integer, List<RegisteredServer>> playercountMap = new HashMap<>();
+                final class Tuple<A, B> {
+                    final A a;
+                    final B b;
 
-                for (String serverName : servers) {
-                    LobbySystem.getInstance().getServer().getServer(serverName).ifPresentOrElse(server -> {
-                                if (playercountMap.containsKey(server.getPlayersConnected().size())) {
-                                    List<RegisteredServer> newServerList = playercountMap.get(server.getPlayersConnected().size());
-                                    newServerList.add(server);
-
-                                    playercountMap.put(server.getPlayersConnected().size(), newServerList);
-                                } else {
-                                    playercountMap.put(server.getPlayersConnected().size(), List.of(server));
-                                }
-                            }, () ->
-                                    LobbySystem.getInstance().getLogger().error("Server " + serverName + " was not found! Can not use it as lowest player count server on join!", new Throwable("Server not found!"))
-                    );
+                    Tuple(A a, B b) {
+                        this.a = a;
+                        this.b = b;
+                    }
                 }
 
-                List<RegisteredServer> lowestCountList = playercountMap.get(Collections.min(playercountMap.keySet()));
-                RegisteredServer lowestCountServer = lowestCountList.get(new Random().nextInt(lowestCountList.size()) - 1);
-
-                selectedServer.set(lowestCountServer);
+                selectedServer.set(LobbySystem.getInstance().getServer().getAllServers().stream()
+                        .filter(s -> servers.contains(s.getServerInfo().getName()))
+                        .map(server -> new Tuple<>(server, server.ping().join()))
+                        .min(Comparator.comparing(t -> t.b.getPlayers().map(ServerPing.Players::getOnline).orElse(0)))
+                        .map(tuple -> tuple.a)
+                        .orElseThrow(NoSuchElementException::new));
             }
         }
 
