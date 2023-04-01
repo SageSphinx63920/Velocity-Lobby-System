@@ -5,8 +5,19 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>de.sage.minecraft</groupId>
-    <artifactId>LobbySystems</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <artifactId>LobbySystem</artifactId>
+    <version>1.0.0</version>
+
+    <name>Lobby System</name>
+    <description>Distribute your players on different lobby servers</description>
+    <url>https://github.com/SageSphinx63920/Velocity-Lobby-System</url>
+
+    <licenses>
+        <license>
+            <name>GNU General Public License v3.0</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
+        </license>
+    </licenses>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
