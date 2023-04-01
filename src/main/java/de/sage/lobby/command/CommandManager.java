@@ -29,17 +29,15 @@ public class CommandManager {
     /**
      * Registers all commands from the config
      */
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void registerCommands() {
         ArrayList<LinkedHashMap> commands = config.getOption(new ArrayList<>(), "commands");
 
-        commands.forEach(map -> {
-            map.keySet().forEach(key -> {
+        commands.forEach(map -> map.keySet().forEach(key -> {
                 TemplateCommand command = new TemplateCommand("commands." + key, config);
 
                 commandManager.register((String) key, command);
-            });
-        });
-
+            })
+        );
     }
-
 }
