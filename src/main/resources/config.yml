@@ -1,0 +1,60 @@
+# This is the config file from the lobby system plugin
+# Available order types are = "playercount" and "random"
+# Here you can enable different functions of the plugin
+# Create commands to the lobby servers
+
+# Registers a command with the given name and settings
+# You have to at least set the "order" option to a command
+# Other options will be taken from the default section in the commands part
+# If you don't want any permission use "none" !!! IN LOWERCASE !!!
+commands:
+  - lobby:
+     order: playercount
+     server-group: lobbies
+     permission: "de.sage.command.lobby"
+
+  - hub:
+     order: random
+     server-group: hubs
+     permission: none
+
+  - spawn:
+      order: playercount
+
+distributing:
+  # Enabled the command section above
+  commands:
+    enabled: true
+    default-permission: "command.lobby"
+    default-group: lobbies
+
+  # Used when a player joins the velocity proxy
+  first-join:
+    enabled: true
+    server-group: lobbies
+    order: random
+
+  # Used when a player changes the server
+  # This is useful when another plugin sends your user to one lobby
+  # But you want to distribute this player over multiple lobbies too
+  on-server-change:
+    enabled: true
+    listen-regex: lobby* # You can find regex example here: https://cs.lmu.edu/~ray/notes/regex/
+    server-group: lobbies
+    order: random
+
+#Here you define groups of lobby servers you can use in the "server-group" option in this file
+groups:
+  lobbies:
+    - lobby1
+    - lobby2
+    - lobby3
+
+  hubs:
+    - hub1
+    - hub2
+
+
+# Do not change this <3
+# Currently still WIP but still don't change it
+config-version: 1
