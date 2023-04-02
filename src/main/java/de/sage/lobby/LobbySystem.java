@@ -1,5 +1,6 @@
 package de.sage.lobby;
 
+import com.google.common.collect.Streams;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
@@ -21,6 +22,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Plugin(id = "lobby-system", name = "Lobby System", version = "1.0.0",
@@ -79,21 +81,25 @@ public class LobbySystem {
             }
 
             case PLAYERCOUNT -> {
-                final class Tuple<A, B> {
-                    final A a;
-                    final B b;
+                final class Tuple {
+                    final RegisteredServer server;
+                    final ServerPing ping;
 
-                    Tuple(A a, B b) {
-                        this.a = a;
-                        this.b = b;
+                    Tuple(RegisteredServer server, ServerPing ping) {
+                        this.server = server;
+                        this.ping = ping;
                     }
                 }
 
-                selectedServer.set(LobbySystem.getInstance().getServer().getAllServers().stream()
-                        .filter(s -> servers.contains(s.getServerInfo().getName()))
-                        .map(server -> new Tuple<>(server, server.ping().join()))
-                        .min(Comparator.comparing(t -> t.b.getPlayers().map(ServerPing.Players::getOnline).orElse(0)))
-                        .map(tuple -> tuple.a)
+                final List<CompletableFuture<ServerPing>> pingFutures = LobbySystem.getInstance().getServer().getAllServers().stream()
+                        .map(RegisteredServer::ping)
+                        .toList();
+                CompletableFuture.allOf(pingFutures.toArray(CompletableFuture[]::new)).join();
+                final List<ServerPing> pings = pingFutures.stream().map(CompletableFuture::join).toList();
+
+                selectedServer.set(Streams.zip(LobbySystem.getInstance().getServer().getAllServers().stream(), pings.stream(), Tuple::new)
+                        .min(Comparator.comparing(t -> t.ping.getPlayers().map(ServerPing.Players::getOnline).orElse(0)))
+                        .map(tuple -> tuple.server)
                         .orElseThrow(NoSuchElementException::new));
             }
         }
