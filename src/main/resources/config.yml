@@ -54,6 +54,11 @@ groups:
     - hub1
     - hub2
 
+# This is useful when you have multiple proxies
+# The plugin will get the server with the lowest playercount with the least connections using all proxies
+redis-bungee:
+  enabled: true
+
 
 # Do not change this <3
 # Currently still WIP but still don't change it
