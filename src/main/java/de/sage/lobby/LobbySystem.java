@@ -2,8 +2,10 @@ package de.sage.lobby;
 
 import com.google.common.collect.Streams;
 import com.google.inject.Inject;
+import com.imaginarycode.minecraft.redisbungee.RedisBungeeAPI;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
+import com.velocitypowered.api.plugin.Dependency;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
@@ -12,6 +14,7 @@ import com.velocitypowered.api.proxy.server.ServerPing;
 import de.sage.lobby.command.CommandManager;
 import de.sage.lobby.config.VelocityConfig;
 import de.sage.lobby.event.DistributeEvents;
+import de.sage.lobby.redis.RedisBungeeUtil;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,7 +30,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Plugin(id = "lobby-system", name = "Lobby System", version = "1.0.0",
         url = "https://sageee.xyz", description = "Distribute your players on different lobby servers",
-        authors = {"SageSphinx63920"})
+        authors = {"SageSphinx63920"},
+        dependencies = {
+                @Dependency(id = "redisbungee", optional = true)
+        })
 public class LobbySystem {
 
     private final Path dataDirectory;
@@ -35,6 +41,7 @@ public class LobbySystem {
     private final @Getter Logger logger;
     private static LobbySystem instance;
     private @Getter VelocityConfig config;
+    private @Getter RedisBungeeUtil redisBungeeUtil = null;
 
     @Inject
     public LobbySystem(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -54,6 +61,10 @@ public class LobbySystem {
         //Register Commands
         CommandManager commandManager = new CommandManager(this, config);
         commandManager.registerCommands();
+
+        if(this.server.getPluginManager().getPlugin("redisbungee").isPresent() && config.getOption(false, "redis-bungee.enabled")) {
+            this.redisBungeeUtil = new RedisBungeeUtil(RedisBungeeAPI.getRedisBungeeApi());
+        }
     }
 
     public static LobbySystem getInstance() {
@@ -81,26 +92,30 @@ public class LobbySystem {
             }
 
             case PLAYERCOUNT -> {
-                final class Tuple {
-                    final RegisteredServer server;
-                    final ServerPing ping;
+                if(redisBungeeUtil != null){
+                    selectedServer.set(redisBungeeUtil.getServerWithLeastPlayers(servers));
+                }else {
+                    final class Tuple {
+                        final RegisteredServer server;
+                        final ServerPing ping;
 
-                    Tuple(RegisteredServer server, ServerPing ping) {
-                        this.server = server;
-                        this.ping = ping;
+                        Tuple(RegisteredServer server, ServerPing ping) {
+                            this.server = server;
+                            this.ping = ping;
+                        }
                     }
+
+                    final List<CompletableFuture<ServerPing>> pingFutures = LobbySystem.getInstance().getServer().getAllServers().stream()
+                            .map(RegisteredServer::ping)
+                            .toList();
+                    CompletableFuture.allOf(pingFutures.toArray(CompletableFuture[]::new)).join();
+                    final List<ServerPing> pings = pingFutures.stream().map(CompletableFuture::join).toList();
+
+                    selectedServer.set(Streams.zip(LobbySystem.getInstance().getServer().getAllServers().stream(), pings.stream(), Tuple::new)
+                            .min(Comparator.comparing(t -> t.ping.getPlayers().map(ServerPing.Players::getOnline).orElse(0)))
+                            .map(tuple -> tuple.server)
+                            .orElseThrow(NoSuchElementException::new));
                 }
-
-                final List<CompletableFuture<ServerPing>> pingFutures = LobbySystem.getInstance().getServer().getAllServers().stream()
-                        .map(RegisteredServer::ping)
-                        .toList();
-                CompletableFuture.allOf(pingFutures.toArray(CompletableFuture[]::new)).join();
-                final List<ServerPing> pings = pingFutures.stream().map(CompletableFuture::join).toList();
-
-                selectedServer.set(Streams.zip(LobbySystem.getInstance().getServer().getAllServers().stream(), pings.stream(), Tuple::new)
-                        .min(Comparator.comparing(t -> t.ping.getPlayers().map(ServerPing.Players::getOnline).orElse(0)))
-                        .map(tuple -> tuple.server)
-                        .orElseThrow(NoSuchElementException::new));
             }
         }
 
